@@ -115,3 +115,31 @@ def calculate_max_profit_loss(
     return max_profit, is_profit_unlimited, max_loss, is_loss_unlimited
 
 
+def find_breakevens(
+    spot_grid: np.ndarray,
+    payoff_grid: np.ndarray
+) -> List[float]:
+    """
+    Finds spot prices where the strategy payoff crosses 0 (break-even points)
+    using exact linear interpolation between adjacent grid points.
+    """
+    breakevens = []
+    for i in range(len(spot_grid) - 1):
+        y1, y2 = payoff_grid[i], payoff_grid[i + 1]
+        x1, x2 = spot_grid[i], spot_grid[i + 1]
+
+        # Check for zero crossing
+        if y1 == 0:
+            breakevens.append(round(float(x1), 2))
+        elif (y1 < 0 and y2 > 0) or (y1 > 0 and y2 < 0):
+            # Linear interpolation: x = x1 - y1 * (x2 - x1) / (y2 - y1)
+            x_cross = x1 - y1 * (x2 - x1) / (y2 - y1)
+            breakevens.append(round(float(x_cross), 2))
+
+    # Remove duplicates close to each other
+    unique_bes = []
+    for be in breakevens:
+        if not any(abs(be - u) < 1.0 for u in unique_bes):
+            unique_bes.append(be)
+
+    return sorted(unique_bes)
