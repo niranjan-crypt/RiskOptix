@@ -70,3 +70,48 @@ def calculate_strategy_payoff(
     return total_payoff
 
 
+def calculate_max_profit_loss(
+    spot_grid: np.ndarray,
+    payoff_grid: np.ndarray
+) -> Tuple[float, bool, float, bool]:
+    """
+    Determines max profit, max loss, and checks if payoff is unbounded ('Unlimited').
+    
+    Returns:
+        (max_profit, is_profit_unlimited, max_loss, is_loss_unlimited)
+        Note: max_loss is returned as an absolute negative amount (or float('-inf')).
+    """
+    raw_max = float(np.max(payoff_grid))
+    raw_min = float(np.min(payoff_grid))
+
+    # Evaluate slopes at the boundaries to detect open-ended unbounded risk
+    left_slope = (payoff_grid[1] - payoff_grid[0]) / (spot_grid[1] - spot_grid[0])
+    right_slope = (payoff_grid[-1] - payoff_grid[-2]) / (spot_grid[-1] - spot_grid[-2])
+
+    slope_threshold = 0.05  # Any sustained slope indicates unbounded trajectory
+
+    is_profit_unlimited = False
+    is_loss_unlimited = False
+
+    # Left edge (spot -> 0)
+    if left_slope < -slope_threshold:
+        # As spot decreases, payoff increases (e.g., naked put buy or short call)
+        is_profit_unlimited = True
+    elif left_slope > slope_threshold:
+        # As spot decreases, payoff plunges (e.g., short put)
+        is_loss_unlimited = True
+
+    # Right edge (spot -> infinity)
+    if right_slope > slope_threshold:
+        # As spot increases, payoff increases (e.g., naked call buy)
+        is_profit_unlimited = True
+    elif right_slope < -slope_threshold:
+        # As spot increases, payoff plunges into catastrophic loss (e.g., short call)
+        is_loss_unlimited = True
+
+    max_profit = float("inf") if is_profit_unlimited else raw_max
+    max_loss = float("-inf") if is_loss_unlimited else raw_min
+
+    return max_profit, is_profit_unlimited, max_loss, is_loss_unlimited
+
+
