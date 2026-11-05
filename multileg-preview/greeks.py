@@ -140,3 +140,35 @@ def calculate_strategy_greeks(
     }
 
 
+def calculate_today_payoff(
+    spot_grid: np.ndarray,
+    legs: List[Dict[str, Any]],
+    time_to_expiry_years: float,
+    risk_free_rate: float = 0.065
+) -> np.ndarray:
+    """
+    Computes theoretical P&L today across spot grid (T-0 curve).
+    Payoff today = sum( side * lots * lot_size * (Theoretical_Price(S_grid) - entry_premium) )
+    """
+    today_payoff = np.zeros_like(spot_grid, dtype=float)
+
+    for leg in legs:
+        side = leg["side"]
+        lots = leg.get("lots", 1)
+        lot_size = leg.get("lot_size", 25)
+        entry_p = leg["premium"]
+        iv = leg.get("iv", 0.14)
+
+        theo_prices = black_scholes_price(
+            spot=spot_grid,
+            strike=leg["strike"],
+            time_to_expiry_years=time_to_expiry_years,
+            volatility=iv,
+            risk_free_rate=risk_free_rate,
+            opt_type=leg["type"]
+        )
+
+        leg_today_pnl = side * lots * lot_size * (theo_prices - entry_p)
+        today_payoff += leg_today_pnl
+
+    return today_payoff
