@@ -63,3 +63,80 @@ def calculate_leg_greeks(
 ) -> Dict[str, float]:
     """
     Calculates single-unit Black-Scholes Greeks:
+    Delta, Gamma, Theta (per day decay in ₹), and Vega (per 1% IV shift in ₹).
+    """
+    opt_type = opt_type.upper()
+    T = max(time_to_expiry_years, 1e-6)
+    vol = max(volatility, 1e-4)
+
+    d1 = (math.log(spot / strike) + (risk_free_rate + 0.5 * vol ** 2) * T) / (vol * math.sqrt(T))
+    d2 = d1 - vol * math.sqrt(T)
+
+    pdf_d1 = _pdf(d1)
+    discount = math.exp(-risk_free_rate * T)
+
+    # Gamma & Vega are identical for Calls and Puts
+    gamma = pdf_d1 / (spot * vol * math.sqrt(T))
+    vega = (spot * pdf_d1 * math.sqrt(T)) / 100.0  # per 1% move in IV
+
+    if opt_type in ("CE", "CALL"):
+        delta = _cdf(d1)
+        theta_annual = -(spot * pdf_d1 * vol) / (2 * math.sqrt(T)) - (risk_free_rate * strike * discount * _cdf(d2))
+    else:
+        delta = _cdf(d1) - 1.0
+        theta_annual = -(spot * pdf_d1 * vol) / (2 * math.sqrt(T)) + (risk_free_rate * strike * discount * _cdf(-d2))
+
+    theta_daily = theta_annual / 365.0
+
+    return {
+        "delta": round(float(delta), 4),
+        "gamma": round(float(gamma), 6),
+        "theta": round(float(theta_daily), 2),
+        "vega": round(float(vega), 2),
+    }
+
+
+def calculate_strategy_greeks(
+    spot: float,
+    legs: List[Dict[str, Any]],
+    time_to_expiry_years: float,
+    risk_free_rate: float = 0.065
+) -> Dict[str, float]:
+    """
+    Aggregates net portfolio Greeks across all strategy legs.
+    Weights each Greek by side (+1 / -1), number of lots, and lot size.
+    """
+    net_delta = 0.0
+    net_gamma = 0.0
+    net_theta = 0.0
+    net_vega = 0.0
+
+    for leg in legs:
+        side = leg["side"]
+        lots = leg.get("lots", 1)
+        lot_size = leg.get("lot_size", 25)
+        multiplier = side * lots * lot_size
+        iv = leg.get("iv", 0.14)
+
+        greeks = calculate_leg_greeks(
+            spot=spot,
+            strike=leg["strike"],
+            time_to_expiry_years=time_to_expiry_years,
+            volatility=iv,
+            risk_free_rate=risk_free_rate,
+            opt_type=leg["type"]
+        )
+
+        net_delta += multiplier * greeks["delta"]
+        net_gamma += multiplier * greeks["gamma"]
+        net_theta += multiplier * greeks["theta"]
+        net_vega += multiplier * greeks["vega"]
+
+    return {
+        "net_delta": round(net_delta, 2),
+        "net_gamma": round(net_gamma, 4),
+        "net_theta": round(net_theta, 2),
+        "net_vega": round(net_vega, 2)
+    }
+
+
