@@ -53,3 +53,30 @@ def calculate_defined_risk_margin_estimate(
     }
 
 
+def format_broker_margin_comparison(
+    broker_margin_input: float,
+    max_loss: float,
+    is_loss_unlimited: bool
+) -> Dict[str, Any]:
+    """
+    Option A: Formats user-provided margin directly from broker calculator,
+    comparing it against strategy Max Loss and available capital.
+    """
+    if is_loss_unlimited:
+        capital_ratio = "N/A (Unlimited Loss)"
+        warning = "CRITICAL: Potential loss exceeds margin deposited!"
+    else:
+        defined_loss = abs(max_loss)
+        if broker_margin_input > 0:
+            ratio = (defined_loss / broker_margin_input) * 100.0
+            capital_ratio = f"{round(ratio, 1)}%"
+            warning = "Max loss is fully covered by required margin." if ratio <= 100 else "Max loss exceeds margin!"
+        else:
+            capital_ratio = "0.0%"
+            warning = "Enter broker margin to evaluate capital efficiency."
+
+    return {
+        "broker_margin_inr": round(broker_margin_input, 2),
+        "capital_at_risk_ratio": capital_ratio,
+        "comparison_note": warning
+    }
